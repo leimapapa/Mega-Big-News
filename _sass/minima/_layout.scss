@@ -266,6 +266,25 @@
   margin-bottom: $spacing-unit;
 }
 
+/* Post page cover image */
+.post-cover-wrap {
+  margin-bottom: $spacing-unit;
+
+  img.post-cover {
+    display: block;
+    width: 100%;
+    max-height: 360px;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+
+  @media screen and (min-width: $on-large) {
+    img.post-cover {
+      max-height: 480px;
+    }
+  }
+}
+
 .post-title,
 .post-content h1 {
   @include relative-font-size(2.625);

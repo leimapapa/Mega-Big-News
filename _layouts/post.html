@@ -4,6 +4,11 @@ layout: base
 <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
 
   <header class="post-header">
+    {%- if page.cover -%}
+    <div class="post-cover-wrap">
+      <img src="{{ page.cover | relative_url }}" alt="{{ page.title | escape }}" class="post-cover">
+    </div>
+    {%- endif -%}
     <h1 class="post-title p-name" itemprop="name headline">{{ page.title | escape }}</h1>
     <p class="post-meta">
       {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
