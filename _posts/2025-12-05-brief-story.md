@@ -1,5 +1,6 @@
 ---
 layout: post
+cover: /media/Gemini_Generated_Image_kmobf2kmobf2kmob.png
 title: Brief Story
 author:
   - JujuBee McBeans
