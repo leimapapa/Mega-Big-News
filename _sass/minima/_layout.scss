@@ -280,7 +280,7 @@
     margin-right: $spacing-unit;
 
     img.post-cover {
-      display: block;
+      display: inline-flex;
       width: 120px;
       height: 80px;
       object-fit: cover;
