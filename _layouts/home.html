@@ -5,7 +5,7 @@ layout: base
 <div class="home">
   {%- if page.title -%}
     <h1 class="page-heading">
-      <a class="page-logo" href="{{ '/' | relative_url }}" aria-label="Home">
+      <a class="page-logo" href="{{ '/' | relative_url }}" aria-label="Home" title="{{ site.title | escape }}">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28px" height="28px" aria-hidden="true" focusable="false">
           <g class="world">
             <path class="worldBG" d="M 30.4 61.8 a 20 20 0 0 0 -2.1 5.5 a 3.5 3.5 0 0 0 -0.7 4.8 a 20 20 0 0 0 44.4 -2.8 a 4 4 0 0 0 -1.9 -6.6 a 20 20 0 0 0 -3.1 -4.7 z" fill="steelblue" stroke="#000" stroke-width="1" stroke-linejoin="round" />
@@ -42,7 +42,7 @@ layout: base
           </g>
         </svg>
       </a>
-      {{ page.title }}
+      <span class="title-text">{{ page.title }}</span>
     </h1>
   {%- endif -%}
 

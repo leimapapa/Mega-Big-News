@@ -224,6 +224,17 @@
       height: 28px;
     }
   }
+  .title-text {
+    display: inline-block;
+    line-height: 1;
+  }
+
+  // On small screens show only the logo (hide the title text)
+  @include media-query($on-palm) {
+    .title-text { display: none; }
+    .page-logo { margin-right: 0; }
+    .page-logo svg { width: 32px; height: 32px; }
+  }
 }
 
 .post-list-heading {
