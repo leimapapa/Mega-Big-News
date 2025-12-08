@@ -273,25 +273,27 @@
 .post-list {
   .post-list-item {
     display: flex;
+    align-items: center; // Vertically center the image only
   }
 
   .post-image {
     flex: 0 0 auto;
     margin-right: $spacing-unit;
+    display: flex;
+    align-items: center; // Center the image vertically
 
     img.post-cover {
-      display: inline-flex;
+      display: block;
       width: 120px;
       height: 80px;
       object-fit: cover;
       border-radius: 4px;
-      align-items: center;
-      justify-content: center;
     }
   }
 
   .post-list-body {
-    flex: 1 1 auto;
+    flex: 1 1 auto; // Ensure text remains left-justified
+    text-align: left; // Explicitly set left alignment for text
   }
 }
 
