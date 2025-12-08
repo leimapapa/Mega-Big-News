@@ -286,13 +286,13 @@
       height: 80px;
       object-fit: cover;
       border-radius: 4px;
-      margin: 0 auto; // Center the image
+      align-items: center;
+      justify-content: center;
     }
   }
 
   .post-list-body {
     flex: 1 1 auto;
-    text-align: center; // Center the title text
   }
 }
 
@@ -336,7 +336,7 @@
 
 /* Lazy-loading placeholder blur */
 img.post-cover.lazy {
-  filter: blur(5px) saturate(.95);
+  filter: blur(1px) saturate(.5);
   transform: scale(1.02);
   transition: filter 450ms ease, transform 450ms ease, opacity 400ms ease;
 }
