@@ -43,6 +43,9 @@ layout: base
             <span class="p-author h-card" itemprop="name">{{ author }}</span></span>
             {%- if forloop.last == false %}, {% endif -%}
         {% endfor %}
+      {%- endif -%}
+      {%- if page.categories -%}
+          • <span class="post-category-badge">{{ page.categories }}</span>
       {%- endif -%}</p>
   </header>
 

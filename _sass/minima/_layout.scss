@@ -453,3 +453,28 @@ img.post-cover.lazy.lazy-loaded {
     width: calc(50% - (#{$spacing-unit} / 2));
   }
 }
+
+.post-category-badge {
+    /* Basic badge shape and size */
+    display: inline-block;
+    padding: 0.25em 0.6em; /* Vertical and horizontal padding */
+    font-size: 0.8em; /* Smaller font size for the badge */
+    font-weight: 700; /* Bold text */
+    line-height: 1; /* Ensure text sits nicely */
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-radius: 0.35rem; /* Rounded corners */
+    text-transform: uppercase; /* Make text all caps */
+    letter-spacing: 0.5px; /* Add some space between letters */
+
+    /* Badge color scheme */
+    color: #ffffff; /* White text */
+    background-color: #007bff; /* A standard blue color */
+}
+
+/* Optional: Add a subtle hover effect */
+.post-category-badge:hover {
+    opacity: 0.9;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* Subtle shadow on hover */
+}
