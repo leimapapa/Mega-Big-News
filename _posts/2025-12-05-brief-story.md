@@ -1,6 +1,6 @@
 ---
 layout: post
-cover: /media/Gemini_Generated_Image_kmobf2kmobf2kmob.png
+cover: /media/MegaBigNews.png
 title: Mega Breaking News
 author:
   - JujuBee McBeans
