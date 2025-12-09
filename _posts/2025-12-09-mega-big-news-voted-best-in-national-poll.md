@@ -1,6 +1,5 @@
 ---
 layout: post
-cover: /media/Gemini_Generated_Image_kmobf2kmobf2kmob.png
 title: Mega Big News voted "Best" in National Poll
 categories: awards
 author:
