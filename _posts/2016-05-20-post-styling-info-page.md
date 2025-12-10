@@ -1,7 +1,7 @@
 ---
 layout: post
 cover: /media/zach-reiner-jekyll-island-2.jpg
-title: Post Styling Info Page
+title: Post Styling EXAMPLE Page
 categories: DRAFT
 author:
   - Bart Simpson
