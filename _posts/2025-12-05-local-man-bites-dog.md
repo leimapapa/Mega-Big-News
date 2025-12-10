@@ -1,7 +1,7 @@
 ---
 layout: post
 cover: /media/Gemini_Generated_Image_ojnt6jojnt6jojnt.png
-title: Local man bites dog
+title: Man Bites Dog
 categories: human interest
 author:
   - JujuBee McBeans
