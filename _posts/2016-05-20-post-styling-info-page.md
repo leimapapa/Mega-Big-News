@@ -1,6 +1,6 @@
 ---
 layout: post
-cover: /media/zach-reiner-jekyll-island-2.jpg
+cover: /media/MBN.png
 title: "* EXAMPLE POST PAGE *"
 categories: DRAFT
 author:
