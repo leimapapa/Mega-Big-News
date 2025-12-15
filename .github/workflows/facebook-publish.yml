@@ -1,0 +1,75 @@
+name: Auto-Post New Story to Facebook
+
+on:
+  push:
+    branches:
+      - main # CHANGE THIS to match your default branch (e.g., 'master')
+    paths:
+      - '_posts/**' # Trigger ONLY when files in _posts change (i.e., new post published)
+
+jobs:
+  facebook_post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up dependencies for file parsing
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # Step 1: Find the newest post file committed
+      - name: Find Latest Post File Path
+        id: find_file
+        # This finds the file with the most recent commit hash in the _posts folder
+        run: |
+          LATEST_POST=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep '_posts/' | head -n 1)
+          echo "file_path=$LATEST_POST" >> $GITHUB_OUTPUT
+          
+      # Step 2: Extract the Post Title and generate the final URL
+      - name: Extract Post Metadata and Build URL
+        id: metadata
+        run: |
+          POST_PATH=${{ steps.find_file.outputs.file_path }}
+          if [ -z "$POST_PATH" ]; then
+             echo "No new post detected. Exiting."
+             exit 0 # Exit successfully if no new post is found
+          fi
+
+          # 1. Extract Title from Jekyll Front Matter (assuming standard YAML format)
+          TITLE=$(awk '/^title:/ {sub(/^title: */, ""); gsub(/"/,""); print; exit}' $POST_PATH)
+          
+          # 2. Extract Filename to build the URL (e.g., 2025-12-15-my-new-post.md)
+          FILENAME=$(basename $POST_PATH .md)
+          
+          # 3. Construct the URL based on standard Jekyll permalinks /YEAR/MONTH/DAY/title/
+          # This part is highly dependent on your Jekyll _config.yml permalink setting.
+          DATE_PART=$(echo $FILENAME | cut -d- -f1-3)
+          TITLE_SLUG=$(echo $FILENAME | cut -d- -f4-)
+          
+          # Final URL: BASE_URL/YEAR/MONTH/DAY/TITLE_SLUG.html
+          POST_URL="${{ secrets.JEKYLL_BASE_URL }}/$(echo $DATE_PART | tr -s '-' '/')/$TITLE_SLUG.html"
+
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "url=$POST_URL" >> $GITHUB_OUTPUT
+
+      # Step 3: Publish to Facebook via the Graph API
+      - name: Send Post to Facebook
+        # Only run this step if a new post was detected and metadata extracted
+        if: steps.metadata.outputs.title != ''
+        env:
+          FB_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          POST_TITLE: ${{ steps.metadata.outputs.title }}
+          POST_URL: ${{ steps.metadata.outputs.url }}
+        run: |
+          # The message is the title + the link. Facebook will automatically fetch the preview image.
+          MESSAGE="$POST_TITLE%0A%0ARead the full story here: $POST_URL"
+
+          echo "Attempting to post to Facebook..."
+          
+          curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
+            -d "message=$MESSAGE" \
+            -d "link=$POST_URL" \
+            -d "access_token=$FB_TOKEN"
+          
+          echo "Post attempt completed."
