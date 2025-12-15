@@ -1,6 +1,6 @@
 ---
 layout: post
-title: '"Mankind was my business!" - Late Financier Jacob Marley Accused of
+title: '"Mankind was my Business!" - Late Financier Jacob Marley Accused of
   Human Trafficking'
-categories: human interest
+categories: crime
 ---
