@@ -27,14 +27,9 @@ jobs:
       - name: Find Latest Modified Post File Path
         id: find_file
         run: |
-          # Find which files in _posts were changed between previous commit and HEAD
-          if [ "$(git rev-list --all --count)" -gt 1 ]; then
-            # Multiple commits exist, compare with previous commit
-            LATEST_POST=$(git diff --name-only HEAD~1 HEAD -- _posts/*.md | head -n 1)
-          else
-            # Initial commit, get files in HEAD
-            LATEST_POST=$(git ls-tree -r --name-only HEAD | grep '_posts/.*\.md$' | head -n 1)
-          fi
+          # Get files that are in the current commit (what was pushed)
+          # git show --name-only shows files in HEAD commit without commit details
+          LATEST_POST=$(git show --name-only --pretty="" HEAD | grep '_posts/.*\.md$' | head -n 1)
           
           # Check if a post was actually found
           if [ -z "$LATEST_POST" ]; then
@@ -88,12 +83,24 @@ jobs:
           POST_PATH=${{ steps.rename_post.outputs.file_path }}
           CURRENT_DATE=$(date +%Y-%m-%d)
           
+          # Debug: Show which file we're processing
+          if [ ! -f "$POST_PATH" ]; then
+            echo "ERROR: Post file not found at: $POST_PATH"
+            echo "Listing _posts directory:"
+            ls -lah _posts/ | head -20
+            exit 1
+          fi
+          
+          echo "Processing post file: $POST_PATH"
+          
           # Use yq to extract the title, cover, and categories from the YAML front matter
           FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' $POST_PATH)
           TITLE=$(echo "$FRONT_MATTER" | yq '.title')
           COVER_PATH=$(echo "$FRONT_MATTER" | yq '.cover')
           CATEGORIES=$(echo "$FRONT_MATTER" | yq '.categories')
           EXISTING_MODIFIED=$(echo "$FRONT_MATTER" | yq '.modified_date')
+          
+          echo "Extracted metadata - Title: $TITLE, Categories: $CATEGORIES, Existing Modified: $EXISTING_MODIFIED"
           
           # Check if this post is a DRAFT - if so, skip posting
           if [[ "$CATEGORIES" == *"DRAFT"* ]]; then
@@ -106,6 +113,9 @@ jobs:
           DATE_PART=$(echo $FILENAME | cut -d- -f1-3)
           TITLE_SLUG=$(echo $FILENAME | cut -d- -f4-)
           POST_URL="${{ secrets.JEKYLL_BASE_URL }}/$(echo $DATE_PART | tr -s '-' '/')/$TITLE_SLUG.html"
+
+          echo "Building URL from - Filename: $FILENAME, Date: $DATE_PART, Slug: $TITLE_SLUG"
+          echo "Final POST_URL: $POST_URL"
 
           # Build the full cover image URL if cover path exists
           # Remove any quotes and ensure it's a valid absolute URL
