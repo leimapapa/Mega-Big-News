@@ -9,6 +9,18 @@
     {%- include google-analytics.html -%}
   {%- endif -%}
 
+  {%- comment -%}
+  Override og:image with per-article cover image if available.
+  This must come after {%- seo -%} to override jekyll-seo-tag's default image.
+  {%- endcomment -%}
+  {%- if page.cover -%}
+    {%- assign image_url = page.cover | relative_url | prepend: site.url -%}
+    <meta property="og:image" content="{{ image_url }}">
+    <meta property="og:image:type" content="image/png">
+    <meta name="twitter:image" content="{{ image_url }}">
+    <meta name="twitter:card" content="summary_large_image">
+  {%- endif -%}
+
   {%- include custom-head.html -%}
   
 </head>

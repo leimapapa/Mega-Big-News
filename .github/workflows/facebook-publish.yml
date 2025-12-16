@@ -107,9 +107,7 @@ jobs:
           if [ -n "$COVER_PATH" ] && [ "$COVER_PATH" != "null" ]; then
             # Remove quotes if present
             COVER_PATH=$(echo "$COVER_PATH" | sed 's/"//g')
-            COVER_URL="${{ secrets.JEKYLL_BASE_URL }}${COVER_PATH}"
-          else
-            COVER_URL=""
+            echo "Cover image detected: $COVER_PATH"
           fi
 
           # Update modified_date if it doesn't exist or is null
@@ -131,8 +129,6 @@ jobs:
 
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "url=$POST_URL" >> $GITHUB_OUTPUT
-          echo "cover_url=$COVER_URL" >> $GITHUB_OUTPUT
-          echo "has_cover=true" >> $GITHUB_OUTPUT
           echo "modified_date=$MODIFIED_DATE" >> $GITHUB_OUTPUT
           echo "is_draft=false" >> $GITHUB_OUTPUT
           
@@ -141,7 +137,6 @@ jobs:
           echo "Extracted metadata:"
           echo "Title: $TITLE"
           echo "Post URL: $POST_URL"
-          echo "Cover URL: $COVER_URL"
           echo "Modified Date: $MODIFIED_DATE"
           echo "---"
 
@@ -154,27 +149,17 @@ jobs:
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           POST_TITLE: ${{ steps.metadata.outputs.title }}
           POST_URL: ${{ steps.metadata.outputs.url }}
-          COVER_URL: ${{ steps.metadata.outputs.cover_url }}
         run: |
           # The message contains the satire alert and a link.
           MESSAGE="$POST_TITLE%0A%0ARead the updated story here: $POST_URL"
           
           echo "Attempting to post (or re-post) to Facebook for: $POST_URL"
+          echo "Facebook will scrape og:image meta tag from the page for preview"
           
-          # Build the curl command with cover image if available
-          if [ -n "$COVER_URL" ] && [ "$COVER_URL" != "" ]; then
-            echo "Including cover image: $COVER_URL"
-            curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
-              -d "message=$MESSAGE" \
-              -d "link=$POST_URL" \
-              -d "picture=$COVER_URL" \
-              -d "access_token=$FB_TOKEN"
-          else
-            echo "No cover image found, posting without picture parameter"
-            curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
-              -d "message=$MESSAGE" \
-              -d "link=$POST_URL" \
-              -d "access_token=$FB_TOKEN"
-          fi
+          # Post with just message and link - Facebook will scrape og:image from the page
+          curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
+            -d "message=$MESSAGE" \
+            -d "link=$POST_URL" \
+            -d "access_token=$FB_TOKEN"
           
           echo "Post attempt completed."
