@@ -27,13 +27,13 @@ jobs:
       - name: Find Latest Modified Post File Path
         id: find_file
         run: |
-          # Find which files in _posts were changed in this push using git
-          # This is more reliable than filesystem timestamps after checkout
-          LATEST_POST=$(git diff-tree --no-commit-id --name-only -r HEAD | grep '_posts/.*\.md$' | head -n 1)
-          
-          # If no files found in current commit, try the last commit that touched _posts
-          if [ -z "$LATEST_POST" ]; then
-            LATEST_POST=$(git log -1 --pretty=format:%H --name-only -- _posts/*.md | tail -n 1)
+          # Find which files in _posts were changed between previous commit and HEAD
+          if [ "$(git rev-list --all --count)" -gt 1 ]; then
+            # Multiple commits exist, compare with previous commit
+            LATEST_POST=$(git diff --name-only HEAD~1 HEAD -- _posts/*.md | head -n 1)
+          else
+            # Initial commit, get files in HEAD
+            LATEST_POST=$(git ls-tree -r --name-only HEAD | grep '_posts/.*\.md$' | head -n 1)
           fi
           
           # Check if a post was actually found
@@ -120,13 +120,20 @@ jobs:
             echo "Adding modified_date: $CURRENT_DATE"
             
             # Use yq to add the modified_date field to the front matter
-            yq -i ".modified_date = \"$CURRENT_DATE\"" $POST_PATH
+            # Use eval with output redirection instead of -i flag for compatibility
+            yq eval ".modified_date = \"$CURRENT_DATE\"" "$POST_PATH" > "${POST_PATH}.tmp" && mv "${POST_PATH}.tmp" "$POST_PATH"
             
-            # Commit the change with [skip ci] to prevent workflow re-trigger
-            git add $POST_PATH
-            git commit -m "[skip ci] Auto-add modified_date to $FILENAME"
-            
-            MODIFIED_DATE="$CURRENT_DATE"
+            # Check if the update was successful
+            if [ $? -eq 0 ]; then
+              # Commit the change with [skip ci] to prevent workflow re-trigger
+              git add $POST_PATH
+              git commit -m "[skip ci] Auto-add modified_date to $FILENAME" || true
+              MODIFIED_DATE="$CURRENT_DATE"
+              echo "Successfully added modified_date"
+            else
+              echo "Warning: Failed to update modified_date, continuing without it"
+              MODIFIED_DATE="$CURRENT_DATE"
+            fi
           else
             echo "Post already has modified_date: $EXISTING_MODIFIED"
             MODIFIED_DATE="$EXISTING_MODIFIED"
