@@ -13,71 +13,70 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 2 # Fetch enough history to compare with previous commit
 
       - name: Install yq (YAML processor)
         run: sudo apt-get update && sudo apt-get install -y yq
 
-      # Step 1a: Set up git config for commits
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      # Step 1: Find the most recently modified post file (use push range)
-      - name: Find Latest Modified Post File Path
-        id: find_file
+      # Step 1: Find ONLY the post files that were actually modified in this push
+      - name: Find Modified Post Files in This Push
+        id: find_files
         run: |
-          # Use the push range to reliably determine which files changed in this push
+          # Use the push range to find changed files
           BEFORE=${{ github.event.before }}
           AFTER=${{ github.event.after }}
-          echo "Push range: $BEFORE -> $AFTER"
-
-          # List changed files in the push under _posts. Only include Added or Modified files.
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BEFORE $AFTER -- _posts/*.md || true)
-          echo "Changed files (git diff --diff-filter=AM):"
+          
+          # For initial push, compare with HEAD~1
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "Initial push detected, comparing with HEAD~1"
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- _posts/*.md 2>/dev/null || git ls-files _posts/*.md)
+          else
+            echo "Push range: $BEFORE -> $AFTER"
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BEFORE $AFTER -- _posts/*.md)
+          fi
+          
+          echo "Changed files in this push:"
           echo "$CHANGED_FILES"
-
-          # Pick the first changed post (if multiple, pick first)
+          
+          # Check if any files were found
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No post files were modified in this push. Exiting."
+            exit 0
+          fi
+          
+          # Take only the first file if multiple were changed
           LATEST_POST=$(echo "$CHANGED_FILES" | head -n 1)
-
-          # Fallback: if git diff returned nothing (e.g., initial push or unusual event), fall back to git show HEAD
-          if [ -z "$LATEST_POST" ]; then
-            echo "git diff returned no results, falling back to git show HEAD"
-            LATEST_POST=$(git show --name-only --pretty="" HEAD | grep '_posts/.*\.md$' | head -n 1)
-          fi
-
-          # Check if a post was actually found
-          if [ -z "$LATEST_POST" ]; then
-             echo "No post file found or modified. Exiting."
-             exit 0
-          fi
-
-          echo "Found modified post: $LATEST_POST"
+          
+          echo "Processing post: $LATEST_POST"
           echo "file_path=$LATEST_POST" >> $GITHUB_OUTPUT
 
-      # Step 1b: Check if post is a DRAFT before doing anything else
+      # Step 2: Check if the modified post is a DRAFT
       - name: Check if Post is Draft
         id: check_draft
         run: |
-          POST_PATH=${{ steps.find_file.outputs.file_path }}
+          POST_PATH=${{ steps.find_files.outputs.file_path }}
           
-          # Debug: Show which file we're processing
+          # Verify file exists
           if [ ! -f "$POST_PATH" ]; then
             echo "ERROR: Post file not found at: $POST_PATH"
-            echo "Listing _posts directory:"
-            ls -lah _posts/ | head -20
             exit 1
           fi
           
           echo "Checking draft status for: $POST_PATH"
           
           # Extract categories from YAML front matter
-          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' $POST_PATH)
+          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' "$POST_PATH")
           CATEGORIES=$(echo "$FRONT_MATTER" | yq '.categories')
           
           echo "Categories: $CATEGORIES"
           
-          # Check if this post is a DRAFT - if so, exit early
+          # Check if this post is a DRAFT
           if [[ "$CATEGORIES" == *"DRAFT"* ]]; then
             echo "Post is marked as DRAFT, skipping all processing"
             echo "is_draft=true" >> $GITHUB_OUTPUT
@@ -87,18 +86,13 @@ jobs:
           echo "Post is not a draft, continuing"
           echo "is_draft=false" >> $GITHUB_OUTPUT
 
-      # Step 1c: Rename post with today's date if it's an update (not today's date)
-      # Only runs if not a draft
+      # Step 3: Rename post with today's date if needed
       - name: Update Post Filename to Today's Date
         if: steps.check_draft.outputs.is_draft != 'true'
         id: rename_post
         run: |
-          POST_PATH=${{ steps.find_file.outputs.file_path }}
-          
-          echo "POST_PATH chosen for rename: $POST_PATH"
+          POST_PATH=${{ steps.find_files.outputs.file_path }}
           CURRENT_DATE=$(date +%Y-%m-%d)
-
-          # Extract the current date from the filename (format: YYYY-MM-DD-rest)
           FILENAME=$(basename "$POST_PATH")
           CURRENT_FILE_DATE=$(echo "$FILENAME" | cut -d- -f1-3)
 
@@ -113,22 +107,18 @@ jobs:
 
             # Rename the file
             mv "$POST_PATH" "$NEW_PATH"
-
-            # Update the output variable
             echo "file_path=$NEW_PATH" >> $GITHUB_OUTPUT
 
             # Commit the rename with [skip ci]
             git add -A
             git commit -m "[skip ci] Update post date to $CURRENT_DATE" || true
-
             echo "Renamed: $FILENAME -> $NEW_FILENAME"
           else
             echo "Post is already dated today ($CURRENT_DATE), no rename needed"
             echo "file_path=$POST_PATH" >> $GITHUB_OUTPUT
           fi
 
-      # Step 2: Extract Metadata, Cover Image, and Build URL
-      # Only runs if not a draft
+      # Step 4: Extract Metadata and Build URL
       - name: Extract Post Metadata and Build URL
         if: steps.check_draft.outputs.is_draft != 'true'
         id: metadata
@@ -136,57 +126,41 @@ jobs:
           POST_PATH=${{ steps.rename_post.outputs.file_path }}
           CURRENT_DATE=$(date +%Y-%m-%d)
           
-          # Debug: Show which file we're processing
           if [ ! -f "$POST_PATH" ]; then
             echo "ERROR: Post file not found at: $POST_PATH"
-            echo "Listing _posts directory:"
-            ls -lah _posts/ | head -20
             exit 1
           fi
           
           echo "Processing post file: $POST_PATH"
           
-          # Use yq to extract the title, cover, and categories from the YAML front matter
-          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' $POST_PATH)
+          # Extract YAML front matter
+          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' "$POST_PATH")
           TITLE=$(echo "$FRONT_MATTER" | yq '.title')
           COVER_PATH=$(echo "$FRONT_MATTER" | yq '.cover')
           EXISTING_MODIFIED=$(echo "$FRONT_MATTER" | yq '.modified_date')
           
           echo "Extracted metadata - Title: $TITLE, Existing Modified: $EXISTING_MODIFIED"
           
-          FILENAME=$(basename $POST_PATH .md)
-          DATE_PART=$(echo $FILENAME | cut -d- -f1-3)
-          TITLE_SLUG=$(echo $FILENAME | cut -d- -f4-)
+          # Build URL
+          FILENAME=$(basename "$POST_PATH" .md)
+          DATE_PART=$(echo "$FILENAME" | cut -d- -f1-3)
+          TITLE_SLUG=$(echo "$FILENAME" | cut -d- -f4-)
           POST_URL="${{ secrets.JEKYLL_BASE_URL }}/$(echo $DATE_PART | tr -s '-' '/')/$TITLE_SLUG.html"
 
-          echo "Building URL from - Filename: $FILENAME, Date: $DATE_PART, Slug: $TITLE_SLUG"
           echo "Final POST_URL: $POST_URL"
-
-          # Build the full cover image URL if cover path exists
-          # Remove any quotes and ensure it's a valid absolute URL
-          if [ -n "$COVER_PATH" ] && [ "$COVER_PATH" != "null" ]; then
-            # Remove quotes if present
-            COVER_PATH=$(echo "$COVER_PATH" | sed 's/"//g')
-            echo "Cover image detected: $COVER_PATH"
-          fi
 
           # Update modified_date if it doesn't exist or is null
           if [ -z "$EXISTING_MODIFIED" ] || [ "$EXISTING_MODIFIED" = "null" ]; then
             echo "Adding modified_date: $CURRENT_DATE"
-            
-            # Use yq to add the modified_date field to the front matter
-            # Use eval with output redirection instead of -i flag for compatibility
             yq eval ".modified_date = \"$CURRENT_DATE\"" "$POST_PATH" > "${POST_PATH}.tmp" && mv "${POST_PATH}.tmp" "$POST_PATH"
             
-            # Check if the update was successful
             if [ $? -eq 0 ]; then
-              # Commit the change with [skip ci] to prevent workflow re-trigger
-              git add $POST_PATH
+              git add "$POST_PATH"
               git commit -m "[skip ci] Auto-add modified_date to $FILENAME" || true
               MODIFIED_DATE="$CURRENT_DATE"
               echo "Successfully added modified_date"
             else
-              echo "Warning: Failed to update modified_date, continuing without it"
+              echo "Warning: Failed to update modified_date"
               MODIFIED_DATE="$CURRENT_DATE"
             fi
           else
@@ -197,17 +171,8 @@ jobs:
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "url=$POST_URL" >> $GITHUB_OUTPUT
           echo "modified_date=$MODIFIED_DATE" >> $GITHUB_OUTPUT
-          
-          # Log extracted metadata for debugging
-          echo "---"
-          echo "Extracted metadata:"
-          echo "Title: $TITLE"
-          echo "Post URL: $POST_URL"
-          echo "Modified Date: $MODIFIED_DATE"
-          echo "---"
 
-      # Step 3: Publish to Facebook via the Graph API
-      # Only runs if not a draft and title was extracted
+      # Step 5: Publish to Facebook
       - name: Send Post to Facebook
         if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != ''
         env:
@@ -216,13 +181,10 @@ jobs:
           POST_TITLE: ${{ steps.metadata.outputs.title }}
           POST_URL: ${{ steps.metadata.outputs.url }}
         run: |
-          # The message contains the satire alert and a link.
-          MESSAGE="$POST_TITLE%0A%0ARead the story here: $POST_URL"
+          MESSAGE="$POST_TITLE%0A%0ARead the updated story here: $POST_URL"
           
-          echo "Attempting to post (or re-post) to Facebook for: $POST_URL"
-          echo "Facebook will scrape og:image meta tag from the page for preview"
+          echo "Posting to Facebook: $POST_URL"
           
-          # Post with just message and link - Facebook will scrape og:image from the page
           curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
             -d "message=$MESSAGE" \
             -d "link=$POST_URL" \
