@@ -83,11 +83,19 @@ jobs:
           POST_PATH=${{ steps.rename_post.outputs.file_path }}
           CURRENT_DATE=$(date +%Y-%m-%d)
           
-          # Use yq to extract the title and cover variables from the YAML front matter
+          # Use yq to extract the title, cover, and categories from the YAML front matter
           FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' $POST_PATH)
           TITLE=$(echo "$FRONT_MATTER" | yq '.title')
           COVER_PATH=$(echo "$FRONT_MATTER" | yq '.cover')
+          CATEGORIES=$(echo "$FRONT_MATTER" | yq '.categories')
           EXISTING_MODIFIED=$(echo "$FRONT_MATTER" | yq '.modified_date')
+          
+          # Check if this post is a DRAFT - if so, skip posting
+          if [[ "$CATEGORIES" == *"DRAFT"* ]]; then
+            echo "Post is marked as DRAFT, skipping Facebook post"
+            echo "is_draft=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           
           FILENAME=$(basename $POST_PATH .md)
           DATE_PART=$(echo $FILENAME | cut -d- -f1-3)
@@ -95,7 +103,10 @@ jobs:
           POST_URL="${{ secrets.JEKYLL_BASE_URL }}/$(echo $DATE_PART | tr -s '-' '/')/$TITLE_SLUG.html"
 
           # Build the full cover image URL if cover path exists
+          # Remove any quotes and ensure it's a valid absolute URL
           if [ -n "$COVER_PATH" ] && [ "$COVER_PATH" != "null" ]; then
+            # Remove quotes if present
+            COVER_PATH=$(echo "$COVER_PATH" | sed 's/"//g')
             COVER_URL="${{ secrets.JEKYLL_BASE_URL }}${COVER_PATH}"
           else
             COVER_URL=""
@@ -123,6 +134,7 @@ jobs:
           echo "cover_url=$COVER_URL" >> $GITHUB_OUTPUT
           echo "has_cover=true" >> $GITHUB_OUTPUT
           echo "modified_date=$MODIFIED_DATE" >> $GITHUB_OUTPUT
+          echo "is_draft=false" >> $GITHUB_OUTPUT
           
           # Log extracted metadata for debugging
           echo "---"
@@ -135,8 +147,8 @@ jobs:
 
       # Step 3: Publish to Facebook via the Graph API
       - name: Send Post to Facebook
-        # Check if the title was successfully extracted
-        if: steps.metadata.outputs.title != ''
+        # Check if the title was successfully extracted AND it's not a draft
+        if: steps.metadata.outputs.title != '' && steps.metadata.outputs.is_draft != 'true'
         env:
           FB_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
@@ -150,7 +162,7 @@ jobs:
           echo "Attempting to post (or re-post) to Facebook for: $POST_URL"
           
           # Build the curl command with cover image if available
-          if [ -n "$COVER_URL" ]; then
+          if [ -n "$COVER_URL" ] && [ "$COVER_URL" != "" ]; then
             echo "Including cover image: $COVER_URL"
             curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
               -d "message=$MESSAGE" \
