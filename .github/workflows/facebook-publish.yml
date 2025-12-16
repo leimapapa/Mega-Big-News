@@ -32,9 +32,9 @@ jobs:
           AFTER=${{ github.event.after }}
           echo "Push range: $BEFORE -> $AFTER"
 
-          # List changed files in the push under _posts
-          CHANGED_FILES=$(git diff --name-only $BEFORE $AFTER -- _posts/*.md || true)
-          echo "Changed files (git diff):"
+          # List changed files in the push under _posts. Only include Added or Modified files.
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BEFORE $AFTER -- _posts/*.md || true)
+          echo "Changed files (git diff --diff-filter=AM):"
           echo "$CHANGED_FILES"
 
           # Pick the first changed post (if multiple, pick first)
@@ -59,32 +59,47 @@ jobs:
       - name: Update Post Filename to Today's Date
         id: rename_post
         run: |
-          POST_PATH=${{ steps.find_file.outputs.file_path }}
+          # Recompute changed files to be extra-safe and ensure we operate on an actually changed file
+          BEFORE=${{ github.event.before }}
+          AFTER=${{ github.event.after }}
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BEFORE $AFTER -- _posts/*.md || true)
+          echo "Rename step - changed files:"
+          echo "$CHANGED_FILES"
+
+          # Prefer the first changed file; if none, fall back to the find_file output
+          FIRST_CHANGED=$(echo "$CHANGED_FILES" | head -n 1)
+          if [ -n "$FIRST_CHANGED" ]; then
+            POST_PATH="$FIRST_CHANGED"
+          else
+            POST_PATH=${{ steps.find_file.outputs.file_path }}
+          fi
+
+          echo "POST_PATH chosen for rename: $POST_PATH"
           CURRENT_DATE=$(date +%Y-%m-%d)
-          
+
           # Extract the current date from the filename (format: YYYY-MM-DD-rest)
           FILENAME=$(basename "$POST_PATH")
           CURRENT_FILE_DATE=$(echo "$FILENAME" | cut -d- -f1-3)
-          
+
           # If the file date is not today, rename it to today's date
           if [ "$CURRENT_FILE_DATE" != "$CURRENT_DATE" ]; then
             echo "Post is from $CURRENT_FILE_DATE, updating to $CURRENT_DATE"
-            
+
             # Extract the title slug (everything after the date)
             TITLE_SLUG=$(echo "$FILENAME" | cut -d- -f4-)
             NEW_FILENAME="$CURRENT_DATE-$TITLE_SLUG"
             NEW_PATH="_posts/$NEW_FILENAME"
-            
+
             # Rename the file
             mv "$POST_PATH" "$NEW_PATH"
-            
+
             # Update the output variable
             echo "file_path=$NEW_PATH" >> $GITHUB_OUTPUT
-            
+
             # Commit the rename with [skip ci]
             git add -A
-            git commit -m "[skip ci] Update post date to $CURRENT_DATE"
-            
+            git commit -m "[skip ci] Update post date to $CURRENT_DATE" || true
+
             echo "Renamed: $FILENAME -> $NEW_FILENAME"
           else
             echo "Post is already dated today ($CURRENT_DATE), no rename needed"
