@@ -21,6 +21,17 @@ layout: base
     {% assign posts = site.posts %}
   {% endif %}
 
+  {%- comment -%}
+  Sort posts by modified_date (if available) or date, in reverse chronological order.
+  This ensures recently updated posts appear at the top.
+  {%- endcomment -%}
+  {% assign sorted_posts = "" | split: "" %}
+  {% for post in posts %}
+    {% assign post_sort_date = post.modified_date | default: post.date %}
+    {% assign sorted_posts = sorted_posts | push: post | sort: "modified_date", "date" %}
+  {% endfor %}
+  {% assign sorted_posts = sorted_posts | reverse %}
+
 
   {%- if posts.size > 0 -%}
     {%- if page.list_title -%}
@@ -28,7 +39,7 @@ layout: base
     {%- endif -%}
     <ul class="post-list">
       {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
-      {%- for post in posts -%}
+      {%- for post in sorted_posts -%}
       {%- unless post.categories contains "DRAFT" -%}
       <li class="post-list-item">
         {%- if post.cover -%}

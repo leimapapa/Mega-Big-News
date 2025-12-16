@@ -17,6 +17,12 @@ jobs:
       - name: Install yq (YAML processor)
         run: sudo apt-get update && sudo apt-get install -y yq
 
+      # Step 1a: Set up git config for commits
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
       # Step 1: Find the most recently modified post file
       - name: Find Latest Modified Post File Path
         id: find_file
@@ -40,11 +46,13 @@ jobs:
         # Runs unconditionally since we checked for file existence in Step 1
         run: |
           POST_PATH=${{ steps.find_file.outputs.file_path }}
+          CURRENT_DATE=$(date +%Y-%m-%d)
           
           # Use yq to extract the title and cover variables from the YAML front matter
           FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' $POST_PATH)
           TITLE=$(echo "$FRONT_MATTER" | yq '.title')
           COVER_PATH=$(echo "$FRONT_MATTER" | yq '.cover')
+          EXISTING_MODIFIED=$(echo "$FRONT_MATTER" | yq '.modified_date')
           
           FILENAME=$(basename $POST_PATH .md)
           DATE_PART=$(echo $FILENAME | cut -d- -f1-3)
@@ -58,10 +66,28 @@ jobs:
             COVER_URL=""
           fi
 
+          # Update modified_date if it doesn't exist or is null
+          if [ -z "$EXISTING_MODIFIED" ] || [ "$EXISTING_MODIFIED" = "null" ]; then
+            echo "Adding modified_date: $CURRENT_DATE"
+            
+            # Use yq to add the modified_date field to the front matter
+            yq -i ".modified_date = \"$CURRENT_DATE\"" $POST_PATH
+            
+            # Commit the change with [skip ci] to prevent workflow re-trigger
+            git add $POST_PATH
+            git commit -m "[skip ci] Auto-add modified_date to $FILENAME"
+            
+            MODIFIED_DATE="$CURRENT_DATE"
+          else
+            echo "Post already has modified_date: $EXISTING_MODIFIED"
+            MODIFIED_DATE="$EXISTING_MODIFIED"
+          fi
+
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "url=$POST_URL" >> $GITHUB_OUTPUT
           echo "cover_url=$COVER_URL" >> $GITHUB_OUTPUT
           echo "has_cover=true" >> $GITHUB_OUTPUT
+          echo "modified_date=$MODIFIED_DATE" >> $GITHUB_OUTPUT
           
           # Log extracted metadata for debugging
           echo "---"
@@ -69,6 +95,7 @@ jobs:
           echo "Title: $TITLE"
           echo "Post URL: $POST_URL"
           echo "Cover URL: $COVER_URL"
+          echo "Modified Date: $MODIFIED_DATE"
           echo "---"
 
       # Step 3: Publish to Facebook via the Graph API
