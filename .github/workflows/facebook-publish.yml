@@ -181,7 +181,7 @@ jobs:
           POST_TITLE: ${{ steps.metadata.outputs.title }}
           POST_URL: ${{ steps.metadata.outputs.url }}
         run: |
-          MESSAGE="$POST_TITLE%0A%0ARead the updated story here: $POST_URL"
+          MESSAGE="$POST_TITLE%0A%0ARead full story here: $POST_URL"
           
           echo "Posting to Facebook: $POST_URL"
           
