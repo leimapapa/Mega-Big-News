@@ -14,18 +14,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install yq (YAML processor)
+        # yq is better than awk/sed for reliably parsing YAML front matter
+        run: sudo apt-get update && sudo apt-get install -y yq
 
       # Step 1: Find only NEW post files (Files added, not modified)
       - name: Find Latest NEW Post File Path
         id: find_file
         run: |
-          # Use git diff to find files that were added (A) in the last commit
+          # Use git diff to find the files that were Added (A) in the last commit
           LATEST_POST=$(git diff-tree --no-commit-id --name-only -r --diff-filter=A ${{ github.sha }} | grep '_posts/' | head -n 1)
           echo "file_path=$LATEST_POST" >> $GITHUB_OUTPUT
           
-      # Step 2: Extract Metadata and Build URL
+      # Step 2: Extract Metadata, Cover Image, and Build URL
       - name: Extract Post Metadata and Build URL
         id: metadata
         run: |
@@ -38,40 +39,50 @@ jobs:
           fi
 
           echo "Processing new post: $POST_PATH"
-
-          # 1. Extract Title
-          TITLE=$(awk '/^title:/ {sub(/^title: */, ""); gsub(/"/,""); print; exit}' $POST_PATH)
           
-          # 2. Extract Filename to build the URL (e.g., 2025-12-15-my-satire-piece.md)
+          # Use yq to extract the title and cover variables from the YAML front matter
+          # We use the 'cat' command with pipes to ensure yq only sees the front matter.
+          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' $POST_PATH)
+          TITLE=$(echo "$FRONT_MATTER" | yq '.title')
+          COVER_PATH=$(echo "$FRONT_MATTER" | yq '.cover') # <--- DIRECTLY EXTRACTS 'cover:'
+          
+          # 3. Extract Filename to build the URL (e.g., 2025-12-15-my-satire-piece.md)
           FILENAME=$(basename $POST_PATH .md)
           
-          # 3. Construct the URL (Modify this line if your permalink is NOT /YEAR/MONTH/DAY/title.html)
+          # 4. Construct the Post URL (Modify if permalink is NOT /YEAR/MONTH/DAY/title.html)
           DATE_PART=$(echo $FILENAME | cut -d- -f1-3)
           TITLE_SLUG=$(echo $FILENAME | cut -d- -f4-)
           POST_URL="${{ secrets.JEKYLL_BASE_URL }}/$(echo $DATE_PART | tr -s '-' '/')/$TITLE_SLUG.html"
 
+          # 5. Construct the final Cover Image URL
+          # Assumes COVER_PATH is relative (e.g., /assets/images/my-cover.jpg)
+          COVER_URL="${{ secrets.JEKYLL_BASE_URL }}$COVER_PATH"
+
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "url=$POST_URL" >> $GITHUB_OUTPUT
+          echo "cover_url=$COVER_URL" >> $GITHUB_OUTPUT
           
       # Step 3: Publish to Facebook via the Graph API
       - name: Send Post to Facebook with Image Link
-        # Only run this step if a new post was detected and metadata extracted
         if: steps.metadata.outputs.title != ''
         env:
           FB_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           POST_TITLE: ${{ steps.metadata.outputs.title }}
           POST_URL: ${{ steps.metadata.outputs.url }}
+          COVER_URL: ${{ steps.metadata.outputs.cover_url }}
         run: |
-          # The message is the satire alert + a link.
+          # The message contains the satire alert and a link.
           MESSAGE="$POST_TITLE%0A%0ARead the full story here: $POST_URL"
 
           echo "Attempting to post to Facebook..."
           
-          # By using the 'link' parameter, Facebook is forced to scrape your public site.
-          # It looks for the Open Graph (OG) meta tags in the HTML: 
-          # <meta property="og:image" content="https://yourdomain.com/path/to/cover.jpg">
-          # The image specified in that tag will be used as the cover image.
+          # Crucially, we use the 'link' parameter. Even though we extracted the image URL,
+          # using the 'link' parameter is the most reliable method for Page Posts.
+          # Facebook will scrape the page URL (POST_URL) for the Open Graph (OG) tags,
+          # and since your page.cover is correctly mapped to the OG:Image tag on your live site,
+          # this will ensure the image is pulled correctly after the site deploys.
+          # We pass the URL, and Facebook does the rest.
           curl -X POST "https://graph.facebook.com/$PAGE_ID/feed" \
             -d "message=$MESSAGE" \
             -d "link=$POST_URL" \
