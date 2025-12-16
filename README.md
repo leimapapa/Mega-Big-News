@@ -345,7 +345,7 @@ For example, to render a link to an account of user `john.doe` at platform `devi
 To enable Google Analytics, add the following lines to your Jekyll site:
 
 ```yaml
-  google_analytics: UA-NNNNNNNN-N
+  google_analytics: G-NNNNNNNN-N
 ```
 
 Google Analytics will only appear in production, i.e., `JEKYLL_ENV=production`
