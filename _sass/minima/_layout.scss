@@ -279,6 +279,12 @@
   .post-list-item {
     display: flex;
     align-items: center; // Vertically center the image only
+    padding-bottom: $spacing-unit;
+    border-bottom: 1px solid $border-color-01;
+
+    &:last-child {
+      border-bottom: none;
+    }
   }
 
   .post-image {
