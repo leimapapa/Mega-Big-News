@@ -139,22 +139,16 @@ jobs:
         if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != ''
         id: check_posted
         run: |
-          FILE=twitter_posted_stories
           TITLE_RAW='${{ steps.metadata.outputs.title }}'
           TITLE=$(echo "$TITLE_RAW" | sed 's/^"//;s/"$//')
 
-          if [ ! -f "$FILE" ]; then
-            echo "Creating $FILE"
-            echo "" > "$FILE"
-            git add "$FILE" || true
-            git commit -m "[skip ci] Create $FILE for tweeted stories" || true
-          fi
+          SUCCESS_FILE="$TITLE"
 
-          if grep -Fxq -- "$TITLE" "$FILE"; then
+          if [ -f "$SUCCESS_FILE" ]; then
             echo "Title already posted to Twitter: $TITLE"
             echo "already_posted=true" >> $GITHUB_OUTPUT
           else
-            echo "Title not found in $FILE, will post"
+            echo "Title not found, will post"
             echo "already_posted=false" >> $GITHUB_OUTPUT
           fi
 
@@ -196,8 +190,8 @@ jobs:
             try {
               const tweetText = `${title}\n\nRead full story: ${url}`;
               const rw = client.readWrite;
-              const res = await rw.v1.tweet(tweetText);
-              console.log('Tweet posted, id:', res.id_str || res.id);
+              const res = await rw.v2.tweet(tweetText);
+              console.log('Tweet posted, id:', res.data.id);
             } catch (err) {
               console.error('Error posting tweet:', err);
               process.exit(1);
@@ -212,8 +206,8 @@ jobs:
           export POST_TITLE="$POST_TITLE_STRIPPED"
           node tweet.js
 
-          # Record the posted title to twitter_posted_stories and push
-          echo "$POST_TITLE_STRIPPED" >> twitter_posted_stories
-          git add twitter_posted_stories
-          git commit -m "[skip ci] Record tweeted: $POST_TITLE_STRIPPED" || true
+          # Create the empty success file and push
+          touch "$POST_TITLE_STRIPPED"
+          git add "$POST_TITLE_STRIPPED"
+          git commit -m "[skip ci] Record successful tweet: $POST_TITLE_STRIPPED" || true
           git push origin "HEAD:refs/heads/${{ github.ref_name }}" || true
