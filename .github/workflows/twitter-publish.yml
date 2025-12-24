@@ -71,47 +71,6 @@ jobs:
 
           echo "Post is not a draft, continuing"
           echo "is_draft=false" >> $GITHUB_OUTPUT
-      - name: Ensure UUID and Check Posted Registry
-        id: uuid_check
-        if: steps.check_draft.outputs.is_draft != 'true'
-        run: |
-          POST_PATH=${{ steps.find_files.outputs.file_path }}
-          REGFILE=".github/posted_uuids.yml"
-
-          if [ ! -f "$POST_PATH" ]; then
-            echo "ERROR: Post file not found at: $POST_PATH"
-            exit 1
-          fi
-
-          UUID=$(awk '/^---$/{p=!p; next} p' "$POST_PATH" | yq eval '.uuid // ""' -)
-
-          if [ -z "$UUID" ] || [ "$UUID" = "null" ]; then
-            UUID=$(python3 - <<PY
-import uuid
-print(uuid.uuid4())
-PY
-)
-            yq eval ".uuid = \"$UUID\"" "$POST_PATH" > "${POST_PATH}.tmp" && mv "${POST_PATH}.tmp" "$POST_PATH"
-            git add "$POST_PATH"
-            git commit -m "[skip ci] Auto-add uuid to $POST_PATH" || true
-            git push || true
-          fi
-
-          if [ ! -f "$REGFILE" ]; then
-            echo "posted: []" > "$REGFILE"
-            git add "$REGFILE"
-            git commit -m "[skip ci] Create posted UUID registry" || true
-            git push || true
-          fi
-
-          EXISTS=$(yq eval ".posted[] | select(. == \"$UUID\")" "$REGFILE" 2>/dev/null || true)
-          if [ -n "$EXISTS" ]; then
-            echo "already_posted=true" >> $GITHUB_OUTPUT
-          else
-            echo "already_posted=false" >> $GITHUB_OUTPUT
-          fi
-
-          echo "post_uuid=$UUID" >> $GITHUB_OUTPUT
 
       - name: Extract Post Metadata and Build URL
         if: steps.check_draft.outputs.is_draft != 'true'
@@ -176,8 +135,31 @@ PY
           echo "Waiting 20 seconds for site to deploy..."
           sleep 20
 
+      - name: Check if already posted to Twitter
+        if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != ''
+        id: check_posted
+        run: |
+          FILE=twitter_posted_stories
+          TITLE_RAW='${{ steps.metadata.outputs.title }}'
+          TITLE=$(echo "$TITLE_RAW" | sed 's/^"//;s/"$//')
+
+          if [ ! -f "$FILE" ]; then
+            echo "Creating $FILE"
+            echo "" > "$FILE"
+            git add "$FILE" || true
+            git commit -m "[skip ci] Create $FILE for tweeted stories" || true
+          fi
+
+          if grep -Fxq -- "$TITLE" "$FILE"; then
+            echo "Title already posted to Twitter: $TITLE"
+            echo "already_posted=true" >> $GITHUB_OUTPUT
+          else
+            echo "Title not found in $FILE, will post"
+            echo "already_posted=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Send Post to Twitter
-        if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != '' && steps.uuid_check.outputs.already_posted != 'true'
+        if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != '' && steps.check_posted.outputs.already_posted != 'true'
         env:
           TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
           TWITTER_API_KEY_SECRET: ${{ secrets.TWITTER_API_KEY_SECRET }}
@@ -187,6 +169,10 @@ PY
           POST_URL: ${{ steps.metadata.outputs.url }}
         run: |
           echo "Preparing to post to Twitter: $POST_URL"
+
+          # Prepare stripped title for recording
+          POST_TITLE_RAW='${{ steps.metadata.outputs.title }}'
+          POST_TITLE_STRIPPED=$(echo "$POST_TITLE_RAW" | sed 's/^"//;s/"$//')
 
           # Initialize a minimal Node script to post the tweet using twitter-api-v2
           cat > tweet.js <<'JS'
@@ -222,20 +208,12 @@ PY
           # Install the twitter client and run the script
           npm init -y >/dev/null 2>&1 || true
           npm install twitter-api-v2@1 >/dev/null 2>&1
+          # Export POST_TITLE so node sees it (keep original quoting)
+          export POST_TITLE="$POST_TITLE_STRIPPED"
           node tweet.js
 
-      - name: Record posted UUID
-        if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != '' && steps.uuid_check.outputs.already_posted != 'true'
-        run: |
-          REGFILE=".github/posted_uuids.yml"
-          UUID=${{ steps.uuid_check.outputs.post_uuid }}
-
-          if [ -z "$UUID" ]; then
-            echo "No UUID available; nothing to record"
-            exit 0
-          fi
-
-          yq eval ".posted += [\"$UUID\"]" "$REGFILE" > "${REGFILE}.tmp" && mv "${REGFILE}.tmp" "$REGFILE"
-          git add "$REGFILE"
-          git commit -m "[skip ci] Record posted uuid $UUID" || true
-          git push || true
+          # Record the posted title to twitter_posted_stories and push
+          echo "$POST_TITLE_STRIPPED" >> twitter_posted_stories
+          git add twitter_posted_stories
+          git commit -m "[skip ci] Record tweeted: $POST_TITLE_STRIPPED" || true
+          git push origin "HEAD:refs/heads/${{ github.ref_name }}" || true
