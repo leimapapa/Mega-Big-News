@@ -1,0 +1,184 @@
+name: Auto-Post Article to Twitter
+
+on:
+  push:
+    branches:
+      - main # change if your default branch is different
+    paths:
+      - '_posts/**' # Trigger only when files in _posts change
+
+jobs:
+  twitter_post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Install yq (YAML processor)
+        run: sudo apt-get update && sudo apt-get install -y yq
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Find Modified Post Files in This Push
+        id: find_files
+        run: |
+          BEFORE=${{ github.event.before }}
+          AFTER=${{ github.event.after }}
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- _posts/*.md 2>/dev/null || git ls-files _posts/*.md)
+          else
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BEFORE $AFTER -- _posts/*.md)
+          fi
+
+          echo "Changed files in this push:"
+          echo "$CHANGED_FILES"
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No post files were modified in this push. Exiting."
+            exit 0
+          fi
+
+          LATEST_POST=$(echo "$CHANGED_FILES" | head -n 1)
+          echo "Processing post: $LATEST_POST"
+          echo "file_path=$LATEST_POST" >> $GITHUB_OUTPUT
+
+      - name: Check if Post is Draft
+        id: check_draft
+        run: |
+          POST_PATH=${{ steps.find_files.outputs.file_path }}
+
+          if [ ! -f "$POST_PATH" ]; then
+            echo "ERROR: Post file not found at: $POST_PATH"
+            exit 1
+          fi
+
+          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' "$POST_PATH")
+          CATEGORIES=$(echo "$FRONT_MATTER" | yq '.categories')
+
+          echo "Categories: $CATEGORIES"
+
+          if [[ "$CATEGORIES" == *"DRAFT"* ]]; then
+            echo "Post is marked as DRAFT, skipping all processing"
+            echo "is_draft=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Post is not a draft, continuing"
+          echo "is_draft=false" >> $GITHUB_OUTPUT
+
+      - name: Extract Post Metadata and Build URL
+        if: steps.check_draft.outputs.is_draft != 'true'
+        id: metadata
+        run: |
+          POST_PATH=${{ steps.find_files.outputs.file_path }}
+          CURRENT_DATE=$(date +%Y-%m-%d)
+
+          if [ ! -f "$POST_PATH" ]; then
+            echo "ERROR: Post file not found at: $POST_PATH"
+            exit 1
+          fi
+
+          FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' "$POST_PATH")
+          TITLE=$(echo "$FRONT_MATTER" | yq '.title')
+          COVER_PATH=$(echo "$FRONT_MATTER" | yq '.cover')
+          EXISTING_MODIFIED=$(echo "$FRONT_MATTER" | yq '.modified_date')
+          CATEGORIES=$(echo "$FRONT_MATTER" | yq '.categories')
+
+          echo "Extracted metadata - Title: $TITLE, Categories: $CATEGORIES, Existing Modified: $EXISTING_MODIFIED"
+
+          if echo "$CATEGORIES" | grep -q '^\['; then
+            CATEGORY=$(echo "$CATEGORIES" | yq '.[0]' 2>/dev/null || echo "$CATEGORIES" | sed 's/\[//;s/\]//;s/,.*//;s/\"//g;s/ //g')
+          else
+            CATEGORY=$(echo "$CATEGORIES" | sed 's/\"//g')
+          fi
+
+          echo "Primary category for URL: $CATEGORY"
+
+          FILENAME=$(basename "$POST_PATH" .md)
+          DATE_PART=$(echo "$FILENAME" | cut -d- -f1-3)
+          TITLE_SLUG=$(echo "$FILENAME" | cut -d- -f4-)
+          DATE_PATH=$(echo "$DATE_PART" | tr '-' '/')
+          POST_URL="${{ secrets.JEKYLL_BASE_URL }}/$CATEGORY/$DATE_PATH/$TITLE_SLUG.html"
+
+          echo "Final POST_URL: $POST_URL"
+
+          if [ -z "$EXISTING_MODIFIED" ] || [ "$EXISTING_MODIFIED" = "null" ]; then
+            echo "Adding modified_date: $CURRENT_DATE"
+            yq eval ".modified_date = \"$CURRENT_DATE\"" "$POST_PATH" > "${POST_PATH}.tmp" && mv "${POST_PATH}.tmp" "$POST_PATH"
+            if [ $? -eq 0 ]; then
+              git add "$POST_PATH"
+              git commit -m "[skip ci] Auto-add modified_date to $FILENAME" || true
+              MODIFIED_DATE="$CURRENT_DATE"
+              echo "Successfully added modified_date"
+            else
+              echo "Warning: Failed to update modified_date"
+              MODIFIED_DATE="$CURRENT_DATE"
+            fi
+          else
+            echo "Post already has modified_date: $EXISTING_MODIFIED"
+            MODIFIED_DATE="$EXISTING_MODIFIED"
+          fi
+
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "url=$POST_URL" >> $GITHUB_OUTPUT
+          echo "modified_date=$MODIFIED_DATE" >> $GITHUB_OUTPUT
+
+      - name: Wait for Site Deployment
+        if: steps.check_draft.outputs.is_draft != 'true'
+        run: |
+          echo "Waiting 20 seconds for site to deploy..."
+          sleep 20
+
+      - name: Send Post to Twitter
+        if: steps.check_draft.outputs.is_draft != 'true' && steps.metadata.outputs.title != ''
+        env:
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_KEY_SECRET: ${{ secrets.TWITTER_API_KEY_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+          POST_TITLE: ${{ steps.metadata.outputs.title }}
+          POST_URL: ${{ steps.metadata.outputs.url }}
+        run: |
+          echo "Preparing to post to Twitter: $POST_URL"
+
+          # Initialize a minimal Node script to post the tweet using twitter-api-v2
+          cat > tweet.js <<'JS'
+          const { TwitterApi } = require('twitter-api-v2');
+          const title = process.env.POST_TITLE || '';
+          const url = process.env.POST_URL || '';
+
+          if (!process.env.TWITTER_API_KEY || !process.env.TWITTER_API_KEY_SECRET || !process.env.TWITTER_ACCESS_TOKEN || !process.env.TWITTER_ACCESS_TOKEN_SECRET) {
+            console.error('Twitter API credentials are not set. Aborting.');
+            process.exit(1);
+          }
+
+          const client = new TwitterApi({
+            appKey: process.env.TWITTER_API_KEY,
+            appSecret: process.env.TWITTER_API_KEY_SECRET,
+            accessToken: process.env.TWITTER_ACCESS_TOKEN,
+            accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET,
+          });
+
+          (async () => {
+            try {
+              const tweetText = `${title}\n\nRead full story: ${url}`;
+              const rw = client.readWrite;
+              const res = await rw.v1.tweet(tweetText);
+              console.log('Tweet posted, id:', res.id_str || res.id);
+            } catch (err) {
+              console.error('Error posting tweet:', err);
+              process.exit(1);
+            }
+          })();
+          JS
+
+          # Install the twitter client and run the script
+          npm init -y >/dev/null 2>&1 || true
+          npm install twitter-api-v2@1 >/dev/null 2>&1
+          node tweet.js
