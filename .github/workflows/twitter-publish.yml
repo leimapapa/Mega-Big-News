@@ -85,7 +85,7 @@ jobs:
           fi
 
           FRONT_MATTER=$(awk '/^---$/{p=!p; next} p' "$POST_PATH")
-          TITLE=$(echo "$FRONT_MATTER" | yq '.title // "Untitled"')
+          TITLE=$(echo "$FRONT_MATTER" | yq -r '.title // "Untitled"')
           EXISTING_MODIFIED=$(echo "$FRONT_MATTER" | yq '.modified_date // null')
           CATEGORIES_RAW=$(echo "$FRONT_MATTER" | yq '.categories // empty')
 
