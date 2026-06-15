@@ -8,9 +8,12 @@ theme: minima
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
+  - jekyll-paginate
 header_pages:
   - about.md
   - disclaimer.md
+paginate: 20
+paginate_path: "/page-:num"
 minima:
   skin: auto
 google_analytics: G-L7R80M8SCM

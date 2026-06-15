@@ -16,6 +16,36 @@
     {%- include footer.html -%}
     <!-- Lazy-loading script for images (swaps data-src -> src when visible) -->
     <script src="{{ '/assets/js/lazyload.js' | relative_url }}" defer></script>
+    <script>
+      (function () {
+        var storageKey = 'megabignews-theme';
+        var button = document.getElementById('theme-toggle');
+        var body = document.body;
+        function applyTheme(theme) {
+          if (theme === 'dark') {
+            body.classList.add('dark-mode');
+            if (button) button.textContent = '☀️';
+          } else {
+            body.classList.remove('dark-mode');
+            if (button) button.textContent = '🌙';
+          }
+          try {
+            localStorage.setItem(storageKey, theme);
+          } catch (e) {}
+        }
+        var savedTheme;
+        try {
+          savedTheme = localStorage.getItem(storageKey);
+        } catch (e) {}
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+        if (button) {
+          button.addEventListener('click', function () {
+            applyTheme(body.classList.contains('dark-mode') ? 'light' : 'dark');
+          });
+        }
+      })();
+    </script>
 
   </body>
 

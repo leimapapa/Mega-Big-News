@@ -5,3 +5,56 @@
 @import
   "minima/skins/{{ site.minima.skin | default: 'classic' }}",
   "minima/initialize";
+
+body.dark-mode {
+  background: #090b0f !important;
+  color: #e6e8ed !important;
+}
+
+body.dark-mode .site-header,
+body.dark-mode .site-footer,
+body.dark-mode .page-content,
+body.dark-mode .wrapper,
+body.dark-mode .post-list-item,
+body.dark-mode .site-nav {
+  background: #0f1220 !important;
+  color: #e6e8ed !important;
+  border-color: #2a2f42 !important;
+}
+
+body.dark-mode a,
+body.dark-mode a:visited,
+body.dark-mode .page-link,
+body.dark-mode .post-link,
+body.dark-mode .site-title,
+body.dark-mode .site-title-text,
+body.dark-mode .pagination a,
+body.dark-mode .post-meta {
+  color: #8ab4f8 !important;
+}
+
+body.dark-mode .post-list-item {
+  border-color: #2a2f42 !important;
+}
+
+.site-header .wrapper {
+  position: relative;
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 1rem;
+  right: 4.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.45rem 0.65rem;
+  color: inherit;
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+}
+
+@media screen and (min-width: 54em) {
+  .theme-toggle {
+    right: 5rem;
+  }
+}
