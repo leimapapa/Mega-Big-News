@@ -15,7 +15,7 @@ layout: base
   don't appear in lists. We'll skip drafts inside the loop for widest
   compatibility with GitHub Pages' Liquid implementation.
   {%- endcomment -%}
-  {% if site.paginate %}
+  {% if site.paginate and paginator %}
     {% assign posts = paginator.posts %}
   {% else %}
     {% assign posts = site.posts %}

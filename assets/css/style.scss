@@ -33,6 +33,30 @@ body.dark-mode .post-meta {
   color: #8ab4f8 !important;
 }
 
+body.dark-mode .site-nav,
+body.dark-mode .site-nav .trigger,
+body.dark-mode .site-nav label[for="nav-trigger"] {
+  background: #0f1220 !important;
+  border-color: #2a2f42 !important;
+}
+
+body.dark-mode .site-nav .page-link {
+  color: #e6e8ed !important;
+}
+
+body.dark-mode .site-nav .page-link:hover,
+body.dark-mode .site-nav .page-link:focus {
+  color: #ffffff !important;
+}
+
+body.dark-mode .site-nav .menu-icon > svg path {
+  fill: #e6e8ed !important;
+}
+
+body.dark-mode .theme-toggle {
+  background: rgba(255,255,255,0.08) !important;
+}
+
 body.dark-mode .post-list-item {
   border-color: #2a2f42 !important;
 }
