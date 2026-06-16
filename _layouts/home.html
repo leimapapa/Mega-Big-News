@@ -12,13 +12,20 @@ layout: base
 
   {%- comment -%}
   Filter out posts whose `categories` include the `DRAFT` value so they
-  don't appear in lists. We'll skip drafts inside the loop for widest
-  compatibility with GitHub Pages' Liquid implementation.
+  don't appear in lists.
   {%- endcomment -%}
-  {% if site.paginate and paginator %}
-    {% assign posts = paginator.posts %}
-  {% else %}
-    {% assign posts = site.posts %}
+  {% assign posts = site.posts %}
+  {% assign page_size = site.articles_per_page | default: 20 %}
+  {% assign visible_posts_count = 0 %}
+  {% for post in posts %}
+    {% unless post.categories contains "DRAFT" %}
+      {% assign visible_posts_count = visible_posts_count | plus: 1 %}
+    {% endunless %}
+  {% endfor %}
+  {% assign total_pages = visible_posts_count | divided_by: page_size %}
+  {% assign page_total = total_pages | times: page_size %}
+  {% if page_total < visible_posts_count %}
+    {% assign total_pages = total_pages | plus: 1 %}
   {% endif %}
 
   {%- comment -%}
@@ -35,8 +42,8 @@ layout: base
     <ul class="post-list">
       {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
       {%- for post in posts -%}
-      {%- unless post.categories contains "DRAFT" -%}
-      <li class="post-list-item">
+      {%- assign page_number = forloop.index0 | divided_by: page_size | plus: 1 -%}
+      <li class="post-list-item" data-page="{{ page_number }}"{%- unless page_number == 1 -%} style="display:none;"{%- endunless -%}>
         {%- if post.cover -%}
         <a class="post-image" href="{{ post.url | relative_url }}">
           {%- if post.cover_small -%}
@@ -68,26 +75,65 @@ layout: base
           {%- endif -%}
         </div>
       </li>
-      {%- endunless -%}
       {%- endfor -%}
     </ul>
 
-    {% if site.paginate %}
+    {% if total_pages > 1 %}
       <div class="pager">
-        <ul class="pagination">
-        {%- if paginator.previous_page %}
-          <li><a href="{{ paginator.previous_page_path | relative_url }}" class="previous-page">{{ paginator.previous_page }}</a></li>
-        {%- else %}
-          <li><div class="pager-edge">•</div></li>
-        {%- endif %}
-          <li><div class="current-page">{{ paginator.page }}</div></li>
-        {%- if paginator.next_page %}
-          <li><a href="{{ paginator.next_page_path | relative_url }}" class="next-page">{{ paginator.next_page }}</a></li>
-        {%- else %}
-          <li><div class="pager-edge">•</div></li>
-        {%- endif %}
+        <ul class="pagination" id="pagination">
+          <li><a id="pager-prev" href="#page-1" class="previous-page">‹</a></li>
+          {%- for page_number in (1..total_pages) -%}
+            <li><a href="#page-{{ page_number }}" data-page="{{ page_number }}" class="page-number">{{ page_number }}</a></li>
+          {%- endfor -%}
+          <li><a id="pager-next" href="#page-{{ total_pages }}" class="next-page">›</a></li>
         </ul>
       </div>
+      <script>
+        (function () {
+          var perPage = {{ page_size }};
+          var totalPages = {{ total_pages }};
+          var pagedItems = Array.prototype.slice.call(document.querySelectorAll('.post-list-item'));
+          var pagination = document.getElementById('pagination');
+          if (!pagination || totalPages <= 1) return;
+
+          function getCurrentPage() {
+            var hash = window.location.hash || '';
+            var match = hash.match(/^#page-(\d+)$/);
+            var page = match ? parseInt(match[1], 10) : 1;
+            if (!page || page < 1) { page = 1; }
+            if (page > totalPages) { page = totalPages; }
+            return page;
+          }
+
+          function updatePagination(page) {
+            pagedItems.forEach(function (item) {
+              item.style.display = item.dataset.page === String(page) ? '' : 'none';
+            });
+
+            pagination.querySelectorAll('[data-page]').forEach(function (link) {
+              if (link.dataset.page === String(page)) {
+                link.classList.add('current-page');
+                link.setAttribute('aria-current', 'page');
+              } else {
+                link.classList.remove('current-page');
+                link.removeAttribute('aria-current');
+              }
+            });
+
+            var prev = document.getElementById('pager-prev');
+            var next = document.getElementById('pager-next');
+            if (prev) prev.href = '#page-' + Math.max(1, page - 1);
+            if (next) next.href = '#page-' + Math.min(totalPages, page + 1);
+          }
+
+          function setPageFromHash() {
+            updatePagination(getCurrentPage());
+          }
+
+          window.addEventListener('hashchange', setPageFromHash);
+          setPageFromHash();
+        })();
+      </script>
     {%- endif %}
 
   {%- endif -%}
