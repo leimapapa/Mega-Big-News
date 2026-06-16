@@ -41,9 +41,11 @@ layout: base
     {%- endif -%}
     <ul class="post-list">
       {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+      {%- assign visible_index = 0 -%}
       {%- for post in posts -%}
-      {%- assign page_number = forloop.index0 | divided_by: page_size | plus: 1 -%}
-      <li class="post-list-item" data-page="{{ page_number }}"{%- unless page_number == 1 -%} style="display:none;"{%- endunless -%}>
+      {%- unless post.categories contains "DRAFT" -%}
+        {%- assign page_number = visible_index | divided_by: page_size | plus: 1 -%}
+        <li class="post-list-item" data-page="{{ page_number }}"{%- unless page_number == 1 -%} style="display:none;"{%- endunless -%}>
         {%- if post.cover -%}
         <a class="post-image" href="{{ post.url | relative_url }}">
           {%- if post.cover_small -%}
@@ -74,7 +76,9 @@ layout: base
             {{ post.excerpt }}
           {%- endif -%}
         </div>
-      </li>
+        </li>
+        {%- assign visible_index = visible_index | plus: 1 -%}
+      {%- endunless -%}
       {%- endfor -%}
     </ul>
 
