@@ -280,6 +280,7 @@
 .featured-post {
   overflow: hidden;
   background: $background-color;
+  color: $text-color;
   border: 1px solid $border-color-01;
   border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
@@ -323,7 +324,7 @@
 .post-list {
   margin-left: 0;
   list-style: none;
-
+}
 
 @media screen and (max-width: $on-palm) {
   .featured-posts {
@@ -335,6 +336,8 @@
     height: 190px;
   }
 }
+
+.post-list {
   > li {
     margin-bottom: $spacing-unit;
   }
