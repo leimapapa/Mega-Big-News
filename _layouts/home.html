@@ -17,14 +17,19 @@ layout: base
   {% assign posts = site.posts %}
   {% assign page_size = site.articles_per_page | default: 20 %}
   {% assign visible_posts_count = 0 %}
+  {% assign promoted_posts_count = 0 %}
   {% for post in posts %}
     {% unless post.categories contains "DRAFT" %}
       {% assign visible_posts_count = visible_posts_count | plus: 1 %}
+      {% if promoted_posts_count < 2 %}
+        {% assign promoted_posts_count = promoted_posts_count | plus: 1 %}
+      {% endif %}
     {% endunless %}
   {% endfor %}
-  {% assign total_pages = visible_posts_count | divided_by: page_size %}
+  {% assign list_posts_count = visible_posts_count | minus: promoted_posts_count %}
+  {% assign total_pages = list_posts_count | divided_by: page_size %}
   {% assign page_total = total_pages | times: page_size %}
-  {% if page_total < visible_posts_count %}
+  {% if page_total < list_posts_count %}
     {% assign total_pages = total_pages | plus: 1 %}
   {% endif %}
 
