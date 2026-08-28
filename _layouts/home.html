@@ -18,19 +18,14 @@ layout: base
   {% assign page_size = site.articles_per_page | default: 20 %}
   {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
   {% assign visible_posts_count = 0 %}
-  {% assign promoted_posts_count = 0 %}
   {% for post in posts %}
     {% unless post.categories contains "DRAFT" %}
       {% assign visible_posts_count = visible_posts_count | plus: 1 %}
-      {% if promoted_posts_count < 2 %}
-        {% assign promoted_posts_count = promoted_posts_count | plus: 1 %}
-      {% endif %}
     {% endunless %}
   {% endfor %}
-  {% assign list_posts_count = visible_posts_count | minus: promoted_posts_count %}
-  {% assign total_pages = list_posts_count | divided_by: page_size %}
+  {% assign total_pages = visible_posts_count | divided_by: page_size %}
   {% assign page_total = total_pages | times: page_size %}
-  {% if page_total < list_posts_count %}
+  {% if page_total < visible_posts_count %}
     {% assign total_pages = total_pages | plus: 1 %}
   {% endif %}
 
@@ -46,12 +41,15 @@ layout: base
       <h2 class="post-list-heading">{{ page.list_title }}</h2>
     {%- endif -%}
 
-    {% assign featured_count = 0 %}
-    <section class="featured-posts" aria-label="Featured stories">
+    {% for page_number in (1..total_pages) %}
+    {% assign visible_index = 0 %}
+    <section class="featured-posts" data-page="{{ page_number }}"{% unless page_number == 1 %} style="display:none;"{% endunless %} aria-label="Featured stories">
       {%- for post in posts -%}
         {%- unless post.categories contains "DRAFT" -%}
-          {%- if featured_count < 2 -%}
-            <article class="featured-post{% if featured_count == 0 %} featured-post-primary{% endif %}">
+          {%- assign post_page = visible_index | divided_by: page_size | plus: 1 -%}
+          {%- assign page_position = visible_index | modulo: page_size -%}
+          {%- if post_page == page_number and page_position < 2 -%}
+            <article class="featured-post{% if page_position == 0 %} featured-post-primary{% endif %}">
               {%- if post.cover -%}
                 <a class="featured-post-image" href="{{ post.url | relative_url }}">
                   {%- if post.cover_small -%}
@@ -69,18 +67,20 @@ layout: base
                 {%- endif -%}
               </div>
             </article>
-            {% assign featured_count = featured_count | plus: 1 %}
           {%- endif -%}
+          {%- assign visible_index = visible_index | plus: 1 -%}
         {%- endunless -%}
       {%- endfor -%}
     </section>
+    {% endfor %}
 
     <ul class="post-list">
       {%- assign visible_index = 0 -%}
       {%- for post in posts -%}
       {%- unless post.categories contains "DRAFT" -%}
-        {%- if visible_index >= 2 -%}
-        {%- assign page_number = visible_index | minus: 2 | divided_by: page_size | plus: 1 -%}
+        {%- assign page_position = visible_index | modulo: page_size -%}
+        {%- if page_position >= 2 -%}
+        {%- assign page_number = visible_index | divided_by: page_size | plus: 1 -%}
         <li class="post-list-item" data-page="{{ page_number }}"{%- unless page_number == 1 -%} style="display:none;"{%- endunless -%}>
         {%- if post.cover -%}
         <a class="post-image" href="{{ post.url | relative_url }}">
@@ -133,7 +133,7 @@ layout: base
         (function () {
           var perPage = {{ page_size }};
           var totalPages = {{ total_pages }};
-          var pagedItems = Array.prototype.slice.call(document.querySelectorAll('.post-list-item'));
+          var pagedItems = Array.prototype.slice.call(document.querySelectorAll('.post-list-item, .featured-posts'));
           var pagination = document.getElementById('pagination');
           if (!pagination || totalPages <= 1) return;
 
