@@ -271,13 +271,14 @@
 }
 
 .featured-posts {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: $spacing-unit;
   margin-bottom: $spacing-unit * 1.5;
 }
 
 .featured-post {
+  width: 100%;
   overflow: hidden;
   background: $background-color;
   color: $text-color;
