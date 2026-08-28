@@ -272,7 +272,7 @@
 
 .featured-posts {
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
+  grid-template-columns: 1fr;
   gap: $spacing-unit;
   margin-bottom: $spacing-unit * 1.5;
 }
@@ -327,10 +327,6 @@
 }
 
 @media screen and (max-width: $on-palm) {
-  .featured-posts {
-    grid-template-columns: 1fr;
-  }
-
   .featured-post-primary .featured-post-image img.post-cover,
   .featured-post .featured-post-image img.post-cover {
     height: 190px;

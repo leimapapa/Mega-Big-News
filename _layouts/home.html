@@ -16,6 +16,7 @@ layout: base
   {%- endcomment -%}
   {% assign posts = site.posts %}
   {% assign page_size = site.articles_per_page | default: 20 %}
+  {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
   {% assign visible_posts_count = 0 %}
   {% assign promoted_posts_count = 0 %}
   {% for post in posts %}
@@ -75,7 +76,6 @@ layout: base
     </section>
 
     <ul class="post-list">
-      {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
       {%- assign visible_index = 0 -%}
       {%- for post in posts -%}
       {%- unless post.categories contains "DRAFT" -%}
