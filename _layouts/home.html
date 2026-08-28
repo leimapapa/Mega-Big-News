@@ -39,12 +39,43 @@ layout: base
     {%- if page.list_title -%}
       <h2 class="post-list-heading">{{ page.list_title }}</h2>
     {%- endif -%}
+
+    {% assign featured_count = 0 %}
+    <section class="featured-posts" aria-label="Featured stories">
+      {%- for post in posts -%}
+        {%- unless post.categories contains "DRAFT" -%}
+          {%- if featured_count < 2 -%}
+            <article class="featured-post{% if featured_count == 0 %} featured-post-primary{% endif %}">
+              {%- if post.cover -%}
+                <a class="featured-post-image" href="{{ post.url | relative_url }}">
+                  {%- if post.cover_small -%}
+                    <img class="post-cover lazy" src="{{ post.cover_small | relative_url }}" data-src="{{ post.cover | relative_url }}" alt="{{ post.title | escape }}" loading="lazy">
+                  {%- else -%}
+                    <img class="post-cover lazy" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="{{ post.cover | relative_url }}" alt="{{ post.title | escape }}" loading="lazy">
+                  {%- endif -%}
+                </a>
+              {%- endif -%}
+              <div class="featured-post-body">
+                <span class="post-meta">{{ post.date | date: date_format }}</span>
+                <h2><a class="post-link" href="{{ post.url | relative_url }}">{{ post.title | escape }}</a></h2>
+                {%- if site.show_excerpts -%}
+                  {{ post.excerpt }}
+                {%- endif -%}
+              </div>
+            </article>
+            {% assign featured_count = featured_count | plus: 1 %}
+          {%- endif -%}
+        {%- endunless -%}
+      {%- endfor -%}
+    </section>
+
     <ul class="post-list">
       {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
       {%- assign visible_index = 0 -%}
       {%- for post in posts -%}
       {%- unless post.categories contains "DRAFT" -%}
-        {%- assign page_number = visible_index | divided_by: page_size | plus: 1 -%}
+        {%- if visible_index >= 2 -%}
+        {%- assign page_number = visible_index | minus: 2 | divided_by: page_size | plus: 1 -%}
         <li class="post-list-item" data-page="{{ page_number }}"{%- unless page_number == 1 -%} style="display:none;"{%- endunless -%}>
         {%- if post.cover -%}
         <a class="post-image" href="{{ post.url | relative_url }}">
@@ -77,6 +108,7 @@ layout: base
           {%- endif -%}
         </div>
         </li>
+        {%- endif -%}
         {%- assign visible_index = visible_index | plus: 1 -%}
       {%- endunless -%}
       {%- endfor -%}
